@@ -26,6 +26,7 @@ public class CameraController : Singleton<CameraController>
     [SerializeField] private float maxZoom = 15f;
     [SerializeField] private float sphereRayRadius = 0.2f;
     [SerializeField] private LayerMask collisionLayers;
+    [SerializeField] private KeyCode switchModeKey = KeyCode.C;
 
     public Camera PlayerCamera => playerCamera;
 
@@ -42,40 +43,33 @@ public class CameraController : Singleton<CameraController>
     private float lerpTime;
     private bool isColliding;
 
-    private bool isMovementEnabled;
-
     private readonly float minCameraAngle = -85f;
     private readonly float maxCameraAngle = 85f;
     
     private const float SENSITIVITY_CONST = 100f;
     private const float FORCE_ROTATE_SPEED = 10f;
 
-    private void Start()
+    protected override void SingletonStarted()
     {
+        base.SingletonStarted();
+
         Cursor.lockState = CursorLockMode.Locked;
 
         playerController = PlayerController.Instance;
 
         maxCollisionZoom = maxZoom;
-        isMovementEnabled = true;
 
         ForceFirstPerson();
-    }
-
-    public void SetCameraMovementState(bool state, bool freeMouse = false)
-    {
-        isMovementEnabled = state;
-
-        Cursor.lockState = freeMouse ? CursorLockMode.None : CursorLockMode.Locked;
     }
     
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.C) && cameraState != CameraState.TRANSITION && isMovementEnabled)
+        if (Input.GetKeyDown(switchModeKey) && cameraState != CameraState.TRANSITION)
         {
             SwitchViewType();
         }
 
+#if UNITY_EDITOR
         if (Input.GetKey(KeyCode.Mouse1)) 
         {
             Time.timeScale = 0.1f;
@@ -84,7 +78,8 @@ public class CameraController : Singleton<CameraController>
         {
             Time.timeScale = 1f;
         }
-        
+#endif
+
         RotateCamera();
     }
 
@@ -222,8 +217,6 @@ public class CameraController : Singleton<CameraController>
 
     private void RotateCamera()
     {
-        if (!isMovementEnabled) return;
-        
         var horizontalInput = Input.GetAxis("Mouse X") * sensitivityX * SENSITIVITY_CONST * Time.deltaTime;
         var verticalInput = Input.GetAxis("Mouse Y") * sensitivityY * SENSITIVITY_CONST * Time.deltaTime;
         
@@ -254,11 +247,6 @@ public class CameraController : Singleton<CameraController>
     public bool IsInFirstPerson()
     {
         return cameraState == CameraState.FIRST_PERSON;
-    }
-
-    public Quaternion GetCameraRotation()
-    {
-        return cameraTransform.rotation;
     }
     
     private void CameraCollisions()

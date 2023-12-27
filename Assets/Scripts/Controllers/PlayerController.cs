@@ -8,21 +8,38 @@ using UnityEngine.Serialization;
 public class PlayerController : Singleton<PlayerController>
 {
     // Public fields
-    
+
+    // TODO: Introduce character state, make method SetState or something which calls OnStateChanged action.
+    // TODO: after doing the above, fix hard landing code.
+
+    public enum CharacterState 
+    { 
+        IDLE,
+        WALKING,
+        RUNNING,
+        JUMPING,
+        FALLING,
+        LANDING
+    }
+
+    [Header("References")]
     [SerializeField] private CharacterController charController;
     [SerializeField] private Transform characterTransform;
     [SerializeField] private Renderer characterRenderer;
     [SerializeField] private Animator characterAnimator;
 
+    [Header("Config")]
     [SerializeField] private float movementSpeed; 
     [SerializeField] private float jumpPower = 8f;
     [SerializeField] private float jumpCooldown = 1f;
     [SerializeField] private float gravityAcceleration = -19.81f;
     [SerializeField] private float turnSpeed = 1f;
-    [SerializeField] private float softLandVelocity = -7f;
+    [SerializeField] private float hardLandingHeight = 5f;
     [SerializeField] private float walkspeedAcceleration = 2f;
     [SerializeField] private float runSpeedMultiplier = 2f;
     [SerializeField] private LayerMask groundedMask;
+    [SerializeField] private KeyCode runKey = KeyCode.LeftShift;
+    [SerializeField] private KeyCode jumpKey = KeyCode.Space;
 
     // Properties
 
@@ -38,11 +55,10 @@ public class PlayerController : Singleton<PlayerController>
     private float currentWalkspeed;
     private float speedMultiplier;
     private float timeSinceJump;
-    private float lastLandingVelocity;
+    private float fallStartY;
     private float yVelocity;
 
     private bool isInitialized;
-    private bool isInputEnabled;
     private bool hasLanded;
     private bool isGrounded;
 
@@ -51,7 +67,7 @@ public class PlayerController : Singleton<PlayerController>
     private const float DEFAULT_WALKSPEED = 2f; // 2f is the speed where feet don't slide. Use this to adjust walk animation speed.
     private const float SPEED_RECOVERY_VALUE = 1f;
     private const float GROUNDED_GRAVITY_MULTIPLIER = 0.15f;
-    private const float SPHERE__RADIUS_MULTIPLIER = 0.95f;
+    private const float SPHERE_RADIUS_MULTIPLIER = 0.95f;
 
     // Animation parameters
     
@@ -66,12 +82,13 @@ public class PlayerController : Singleton<PlayerController>
 
     // PlayerController
 
-    private void Start()
+    protected override void SingletonStarted()
     {
+        base.SingletonStarted();
+
         cameraController = CameraController.Instance;
         currentDirection = new Vector2(transform.forward.x, transform.forward.z);
 
-        isInputEnabled = true;
         isInitialized = true;
     }
 
@@ -96,33 +113,23 @@ public class PlayerController : Singleton<PlayerController>
         var horizontalInput = Input.GetAxisRaw("Horizontal");
         var verticalInput =Input.GetAxisRaw("Vertical");
 
-        if (isInputEnabled)
-        {
-            movementInput = new Vector2(horizontalInput, verticalInput);
+        movementInput = new Vector2(horizontalInput, verticalInput);
         
-            if (cameraController.IsInFirstPerson())
-            {
-                currentDirection = movementInput;
-            }
-            else
-            {
-                currentDirection = Vector2.Lerp(currentDirection, movementInput, turnSpeed * Time.deltaTime);
-            }
+        if (cameraController.IsInFirstPerson())
+        {
+            currentDirection = movementInput;
         }
         else
         {
-            movementInput = Vector2.zero;
+            currentDirection = Vector2.Lerp(currentDirection, movementInput, turnSpeed * Time.deltaTime);
         }
-
+        
         CalculateMoveDirection(out Vector3 moveDir, horizontalInput, verticalInput);
-    
-        if (!isInputEnabled)
-            moveDir = Vector3.zero;
         
         HandleRun();
         HandleJump();
 
-        var movementVector = moveDir * currentWalkspeed * speedMultiplier * Time.deltaTime;
+        var movementVector = currentWalkspeed * speedMultiplier * Time.deltaTime * moveDir;
         movementVector.y = yVelocity * Time.deltaTime;
     
         charController.Move(movementVector);
@@ -134,13 +141,12 @@ public class PlayerController : Singleton<PlayerController>
     {
         if (!isInitialized) return;
         
+        // TODO: this part of code doesn't work anymore, bcs working introducing states.
         isGrounded = charController.isGrounded;
         if (!hasLanded && !isGrounded)
         {
             if (IsLandingNextPhysicsFrame())
             {
-                lastLandingVelocity = charController.velocity.y;
-
                 hasLanded = true;
             }
         }
@@ -148,11 +154,6 @@ public class PlayerController : Singleton<PlayerController>
         {
             hasLanded = false;
         }
-    }
-
-    public void SetInputState(bool state)
-    {
-        isInputEnabled = state;
     }
 
     private void CheckGroundedState()
@@ -167,6 +168,7 @@ public class PlayerController : Singleton<PlayerController>
 
     private void CheckIfLanded()
     {
+        // TODO: also rewrite code, since landing stuff changed.
         if (hasLanded)
         {
             if (IsHardLanding())
@@ -192,12 +194,13 @@ public class PlayerController : Singleton<PlayerController>
         startPosition.y += charController.radius;
         var dist = Mathf.Abs(charController.velocity.y * Time.fixedDeltaTime);
 
-        return Physics.SphereCast(startPosition, charController.radius * SPHERE__RADIUS_MULTIPLIER, Vector3.down, out RaycastHit hit, dist, groundedMask);
+        return Physics.SphereCast(startPosition, charController.radius * SPHERE_RADIUS_MULTIPLIER, Vector3.down, out RaycastHit hit, dist, groundedMask);
     }
 
     private bool IsHardLanding()
     {
-        return hasLanded && lastLandingVelocity < softLandVelocity;
+        // TODO: this doesn't work anymore, rewrite hard landing based on fall distance.
+        return hasLanded && fallStartY < hardLandingHeight;
     }
 
     private void CalculateMoveDirection(out Vector3 moveDir, float horizontalInput, float verticalInput)
@@ -223,7 +226,7 @@ public class PlayerController : Singleton<PlayerController>
     
     private void HandleRun()
     {
-        if (Input.GetKey(KeyCode.LeftShift) && isInputEnabled)
+        if (Input.GetKey(runKey))
         {
             var runWalkspeed = movementSpeed * runSpeedMultiplier;
             currentWalkspeed = Mathf.MoveTowards(currentWalkspeed, runWalkspeed, Time.deltaTime * walkspeedAcceleration);
@@ -236,7 +239,7 @@ public class PlayerController : Singleton<PlayerController>
 
     private void HandleJump()
     {
-        if (Input.GetButtonDown("Jump") && CanJump())
+        if (Input.GetKey(jumpKey) && CanJump())
         {
             timeSinceJump = Time.time;
 
@@ -248,7 +251,7 @@ public class PlayerController : Singleton<PlayerController>
         yVelocity += gravityAcceleration * Time.deltaTime;
     }
 
-    private bool CanJump() => isGrounded && Time.time - timeSinceJump > jumpCooldown && isInputEnabled;
+    private bool CanJump() => isGrounded && Time.time - timeSinceJump > jumpCooldown;
 
     private void AnimateMovement()
     {
@@ -260,6 +263,4 @@ public class PlayerController : Singleton<PlayerController>
         characterAnimator.SetFloat(ANIM_DIRECTION_X_PARAM, currentDirection.x);
         characterAnimator.SetFloat(ANIM_DIRECTION_Y_PARAM, currentDirection.y);
     }
-
-    public float GetSpawnHeight() => (charController.height / 2f) + charController.skinWidth;
 }
