@@ -12,7 +12,7 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: DefaultCompany
+  companyName: Vose
   productName: custom-camera-controller
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
@@ -871,11 +871,11 @@ PlayerSettings:
   apiCompatibilityLevel: 6
   activeInputHandler: 0
   windowsGamepadBackendHint: 0
-  cloudProjectId: 
+  cloudProjectId: ddfa6cb4-27dd-426a-ab8d-c331ea4b8865
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: 
-  organizationId: 
+  projectName: custom-camera-controller 2023-12-29_19-48-34
+  organizationId: pijusvose
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   playerDataPath: 
